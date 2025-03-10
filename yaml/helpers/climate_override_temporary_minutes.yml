@@ -1,0 +1,9 @@
+input_number:
+  climate_override_temporary_minutes:
+    name: Climate Override Temporary Minutes
+    min: 0.0
+    max: 999.0
+    mode: box
+    step: 10.0
+    unit_of_measure: minutes
+    icon: mdi:home-thermometer-outline

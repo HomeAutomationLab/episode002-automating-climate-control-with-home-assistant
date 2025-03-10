@@ -1,0 +1,26 @@
+alias: Set climate temporary override until
+description: ""
+triggers:
+  - trigger: state
+    entity_id:
+      - input_boolean.climate_override
+    to: "on"
+  - trigger: state
+    entity_id:
+      - input_select.climate_override_mode
+    to: temporary
+  - trigger: state
+    entity_id:
+      - input_number.climate_override_temporary_minutes
+conditions: []
+actions:
+  - action: input_datetime.set_datetime
+    metadata: {}
+    data:
+      datetime: >-
+        {{ now() +
+        timedelta(minutes=states('input_number.climate_override_temporary_minutes')|int)
+        }}
+    target:
+      entity_id: input_datetime.climate_override_temporary_until
+mode: single

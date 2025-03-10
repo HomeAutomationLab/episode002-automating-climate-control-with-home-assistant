@@ -1,0 +1,50 @@
+cards:
+  - type: tile
+    entity: input_boolean.climate_override
+    tap_action:
+      action: toggle
+    grid_options:
+      columns: 6
+      rows: 2
+  - square: false
+    type: grid
+    cards:
+      - features:
+          - type: select-options
+        type: tile
+        entity: input_select.climate_override_mode
+        hide_state: true
+        name: Override
+    visibility:
+      - condition: state
+        entity: input_boolean.climate_override
+        state: 'on'
+    columns: 2
+  - square: false
+    type: grid
+    cards:
+      - features:
+          - type: numeric-input
+            style: buttons
+        type: tile
+        entity: input_number.climate_override_temporary_minutes
+        hide_state: true
+        name: Override Minutes
+      - type: tile
+        entity: input_datetime.climate_override_temporary_until
+        name: Override Until
+        tap_action:
+          action: none
+        icon_tap_action:
+          action: none
+        hold_action:
+          action: none
+    columns: 2
+    title: Temporary Override
+    visibility:
+      - condition: state
+        entity: input_boolean.climate_override
+        state: 'on'
+      - condition: state
+        entity: input_select.climate_override_mode
+        state: temporary

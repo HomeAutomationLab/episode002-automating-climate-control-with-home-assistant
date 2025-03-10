@@ -1,0 +1,6 @@
+input_select:
+  name: Climate Override Mode
+  options:
+    - permanent
+    - temporary
+  icon: mdi:home-thermometer-outline

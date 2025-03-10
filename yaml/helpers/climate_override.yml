@@ -1,0 +1,4 @@
+input_boolean:
+  climate_override:
+    name: Climate Override
+    icon: mdi:home-thermometer-outline

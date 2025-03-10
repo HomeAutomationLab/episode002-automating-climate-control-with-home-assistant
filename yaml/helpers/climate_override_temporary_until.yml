@@ -1,0 +1,6 @@
+input_datetime:
+  climate_override_temporary_until:
+    name: Climate Override Temporary Until
+    has_date: true
+    has_time: true
+    icon: mdi:home-thermometer-outline

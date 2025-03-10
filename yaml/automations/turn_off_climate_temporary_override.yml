@@ -1,0 +1,22 @@
+alias: Turn off climate temporary override
+description: ""
+triggers:
+  - trigger: template
+    value_template: >-
+      {{ now() >
+      as_local(as_datetime(states('input_datetime.climate_override_temporary_until')))
+      }}
+conditions:
+  - condition: state
+    entity_id: input_boolean.climate_override
+    state: "on"
+  - condition: state
+    entity_id: input_select.climate_override_mode
+    state: temporary
+actions:
+  - action: input_boolean.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.climate_override
+mode: single

@@ -1,0 +1,259 @@
+alias: Climate control
+description: ""
+triggers:
+  - trigger: state
+    entity_id:
+      - input_boolean.climate_override
+    to: "off"
+  - trigger: time_pattern
+    minutes: /3
+    hours: "*"
+conditions:
+  - condition: state
+    entity_id: input_boolean.climate_override
+    state: "off"
+actions:
+    ############################
+    ## Change these variables ##
+    ############################
+  - variables:
+      # Change to your thermostat entity ID
+      thermostat_entity_id:
+
+      # Set away differentials
+      away_differentials:
+        # When the away mode sensor is "away"
+        away:
+          # Added to the cool temperature
+          cool: 
+          # Added to the heat temperature
+          heat: 
+        
+        # When the away mode sensor is "extended"
+        extended:
+          # Added to the cool temperature
+          cool: 
+          # Added to the heat temperature
+          heat: 
+        
+      # Default set points if outside temperature isn't available
+      default_set_points:
+        cool: 
+        heat: 
+      
+      # Nighttime temperature adjustments
+      nighttime:
+        cool:
+          # Added to the current set point (optional)
+          differential: 
+          # Minimum temperature (optional)
+          minimum: 
+          # Maximum temperature (optional)
+          maximum: 
+        heat:
+          differential: 
+          minimum: 
+          maximum: 
+        
+      # Temperatue set points based on the outside temperature
+      climate_set_points:
+        # For each set point you want, copy this block and update with your own.
+        # `cool` and `heat` are both optional, but one must be set!
+        - outside: 65  # outside temperature is greater than or equal to this value
+          cool: 68  # set the cool temperature to this value (optional)
+          heat: 62  # set the heat temperature to this value (optional)
+        # This block acts like a minimum set point.
+        # Set the outside temperature lower 
+        - outside: -100
+          heat: 62
+    alias: Variables to be changed
+    #############################
+    ##   End of safe changes   ##
+    #############################
+
+  - variables:
+      # Set the min and max the thermostat can go
+      minimum_temperature: "{{ state_attr(thermostat_entity_id, 'min_temp') }}"
+      maximum_temperature: "{{ state_attr(thermostat_entity_id, 'max_temp') }}"
+
+      # Determines if the thermostat requires high and low temps
+      must_set_high_and_low: "{{ not state_attr(thermostat_entity_id, 'temperature') }}"
+
+      ########
+      # Because Home Assistant doesn't have globally scoped variables inside of 
+      # sequences, all of the logic for determining temperatures are in this and
+      # heat_temperature_set_point. Not a huge fan, but it is what it is.)
+      ########
+
+      # Set the cool temperature
+      cool_temperature_set_point: >
+        {% set outside_temperature = states('sensor.wx_outside_temperature') | float %} 
+        {% set away_mode = states('sensor.away_mode') %}
+
+        {% set away_mode_differential = away_differentials[away_mode].cool %}
+        {% set nighttime_config = nighttime.cool %}
+        {% set default_set_point = default_set_points.cool %}
+
+        {% set ns = namespace(set_point=None) %}  
+        
+        {% if outside_temperature == -200 %}
+          {# Handle weather in error state #}
+          {% set ns.set_point = default_set_point %}
+        {% else %}
+          {# Calculate set point based on outside temperature #}
+          {% for set_point in climate_set_points|sort(attribute="outside") if set_point.outside <= outside_temperature %}
+            {% set ns.set_point = set_point.get('cool') %}
+          {% endfor %}
+        {% endif %}
+
+        {# Adjust set point for nighttime #}
+        {% if states('binary_sensor.daytime') == 'off' %}          
+          {% if ns.set_point and nighttime_config.differential %}
+            {% set ns.set_point = ns.set_point + nighttime_config.differential %}
+          {% endif %}
+
+          {% if nighttime_config.maximum and ns.set_point and ns.set_point > nighttime_config.maximum %}
+            {% set ns.set_point = nighttime_config.maximum %}
+          {% endif %}
+
+          {% if nighttime_config.minimum and ns.set_point and ns.set_point < nighttime_config.minimum %}
+            {% set ns.set_point = nighttime_config.minimum %}
+          {% endif %}
+        {% endif %}
+        
+        {# Adjust set point for away modes #}
+        {% if not ns.set_point or not away_mode_differential %}
+          {# Do nothing #}
+        {% elif away_mode != 'home' %}
+          {% set ns.set_point = ns.set_point + away_mode_differential %}
+        {% endif %}
+        
+        {# Sanity check min and max temperatures #}
+        {% if not ns.set_point %}
+          {# Do nothing #}
+        {% elif ns.set_point > maximum_temperature %}
+          {% set ns.set_point = maximum_temperature %}
+        {% elif ns.set_point < minimum_temperature %}
+          {% set ns.set_point = minimum_temperature %}
+        {% endif %}
+            
+        {{ ns.set_point }}
+      
+      # Set the heat temperature
+      heat_temperature_set_point: >
+        {% set outside_temperature = states('sensor.wx_outside_temperature') | float %} 
+        {% set away_mode = states('sensor.away_mode') %}
+
+        {% set away_mode_differential = away_differentials[away_mode].heat %}
+        {% set nighttime_config = nighttime.heat %}
+        {% set default_set_point = default_set_points.heat %}
+
+        {% set ns = namespace(set_point=None) %}  
+        
+        {% if outside_temperature == -200 %}
+          {# Handle weather in error state #}
+          {% set ns.set_point = default_set_point %}
+        {% else %}
+          {# Calculate set point based on outside temperature #}
+          {% for set_point in climate_set_points|sort(attribute="outside") if set_point.outside <= outside_temperature %}
+            {% set ns.set_point = set_point.get('heat') %}
+          {% endfor %}
+        {% endif %}
+
+        {# Adjust set point for nighttime #}
+        {% if states('binary_sensor.daytime') == 'off' %}          
+          {% if ns.set_point and nighttime_config.differential %}
+            {% set ns.set_point = ns.set_point + nighttime_config.differential %}
+          {% endif %}
+
+          {% if nighttime_config.maximum and ns.set_point and ns.set_point > nighttime_config.maximum %}
+            {% set ns.set_point = nighttime_config.maximum %}
+          {% endif %}
+
+          {% if nighttime_config.minimum and ns.set_point and ns.set_point < nighttime_config.minimum %}
+            {% set ns.set_point = nighttime_config.minimum %}
+          {% endif %}
+        {% endif %}
+        
+        {# Adjust set point for away modes #}
+        {% if not ns.set_point or not away_mode_differential %}
+          {# Do nothing #}
+        {% elif away_mode != 'home' %}
+          {% set ns.set_point = ns.set_point + away_mode_differential %}
+        {% endif %}
+        
+        {# Sanity check min and max temperatures #}
+        {% if not ns.set_point %}
+          {# Do nothing #}
+        {% elif ns.set_point > maximum_temperature %}
+          {% set ns.set_point = maximum_temperature %}
+        {% elif ns.set_point < minimum_temperature %}
+          {% set ns.set_point = minimum_temperature %}
+        {% endif %}
+            
+        {{ ns.set_point }}
+      
+      # Figure out what HVAC mode to used
+      mode: |
+        {% if cool_temperature_set_point and heat_temperature_set_point %}
+          heat_cool
+        {% elif cool_temperature_set_point %}
+          cool
+        {% else %}
+          heat
+        {% endif %}
+    alias: Set dynamic variables
+
+  - alias: Check if thermostat update is required
+    if:
+      - condition: template
+        value_template: |-
+          {{ 
+            mode == states(thermostat_entity_id) 
+            and (not cool_temperature_set_point or cool_temperature_set_point == state_attr(thermostat_entity_id, 'target_temp_high'))
+            and (not heat_temperature_set_point or heat_temperature_set_point == state_attr(thermostat_entity_id, 'target_temp_low'))
+          }}
+    then:
+      - stop: Thermostat is already set correctly
+    
+  - alias: Update thermostat
+    choose:
+        
+      - conditions:
+          - condition: template
+            value_template: "{{ must_set_high_and_low }}"
+        sequence:
+          - action: climate.set_temperature
+            target:
+              entity_id: "{{ thermostat_entity_id }}"
+            data:
+              target_temp_high: >-
+                {{ cool_temperature_set_point | default( maximum_temperature, true ) }}
+              target_temp_low: >-
+                {{ heat_temperature_set_point | default( minimum_temperature, true ) }}
+              hvac_mode: "{{ mode }}"
+        alias: Update thermostat with high/low required
+
+      - conditions:
+          - condition: template
+            value_template: "{{ mode != 'heat_cool' }}"
+        sequence:
+          - action: climate.set_temperature
+            target:
+              entity_id: "{{ thermostat_entity_id }}"
+            data:
+              temperature: >-
+                {{ cool_temperature_set_point | default( heat_temperature_set_point, true ) }}
+              hvac_mode: "{{ mode }}"
+        alias: Update thermostat with heat or cool mode
+    
+    default:
+      - action: climate.set_temperature
+        target:
+          entity_id: "{{ thermostat_entity_id }}"
+        data:
+          target_temp_low: "{{ cool_temperature_set_point }}"
+          target_temp_high: "{{ heat_temperature_set_point }}"
+          hvac_mode: "{{ mode }}"
+        alias: Update thermostat with heat/cool mode
+mode: single
